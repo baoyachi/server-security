@@ -3,8 +3,10 @@ extern crate log;
 
 mod notify;
 mod proxy;
+mod security;
 
 use crate::proxy::{new_proxy, SocketConfig};
+use crate::security::validate;
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +17,7 @@ async fn main() {
         to_addr: "0.0.0.0:8080".to_string(),
     };
 
-    new_proxy(server_config).await.unwrap();
+    new_proxy(server_config, validate).await.unwrap();
 }
 
 fn init() -> anyhow::Result<()> {
