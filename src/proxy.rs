@@ -3,11 +3,12 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 
 use futures::FutureExt;
-use std::borrow::BorrowMut;
+use serde::Deserialize;
 use std::net::SocketAddr;
 
+#[derive(Deserialize)]
 pub struct SocketConfig {
-    pub listen_addr: String,
+    pub server_addr: String,
     pub to_addr: String,
 }
 
@@ -17,12 +18,11 @@ pub enum ValidateType {
     Forbidden,
 }
 
-
 pub async fn new_proxy<F>(config: SocketConfig, validate: F) -> anyhow::Result<()>
-    where
-        F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
+where
+    F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
 {
-    let listen_addr = config.listen_addr.clone();
+    let listen_addr = config.server_addr.clone();
     let to_addr = config.to_addr;
     let listener = TcpListener::bind(listen_addr).await?;
 
@@ -30,7 +30,7 @@ pub async fn new_proxy<F>(config: SocketConfig, validate: F) -> anyhow::Result<(
         if let Err(err) = validate(&remote_addr) {
             error!("validate error={}", err);
         } else {
-            info!("remote_addr:{}", remote_addr.to_string());
+            debug!("remote_addr:{}", remote_addr.to_string());
             let transfer = transfer(inbound, to_addr.clone()).map(|r| {
                 if let Err(e) = r {
                     error!("Failed to transfer; error={}", e);
