@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::RwLock;
 
-static IP_TABLE: Lazy<RwLock<HashMap<String, ()>>> = Lazy::new(|| Default::default());
+static IP_TABLE: Lazy<RwLock<HashMap<String, ()>>> = Lazy::new(Default::default);
 
 pub fn validate(remote_addr: &SocketAddr) -> anyhow::Result<ValidateType> {
     let remote_ip = remote_addr.ip().to_string();

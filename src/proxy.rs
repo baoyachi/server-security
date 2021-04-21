@@ -18,9 +18,15 @@ pub enum ValidateType {
     Forbidden,
 }
 
-pub async fn new_proxy<F>(config: SocketConfig, validate: F) -> anyhow::Result<()>
-where
-    F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
+pub enum CondType {
+    Continue,
+    Stop,
+}
+
+pub async fn new_proxy<F, C>(config: SocketConfig, validate: F, callback: C) -> anyhow::Result<()>
+    where
+        F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
+        C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static
 {
     let listen_addr = config.server_addr.clone();
     let to_addr = config.to_addr;
@@ -28,12 +34,19 @@ where
 
     while let Ok((inbound, remote_addr)) = listener.accept().await {
         if let Err(err) = validate(&remote_addr) {
-            error!("validate error={}", err);
+            error!("validate error:{}", err);
         } else {
             debug!("remote_addr:{}", remote_addr.to_string());
-            let transfer = transfer(inbound, to_addr.clone()).map(|r| {
+            let transfer = transfer(inbound, to_addr.clone()).map(move |r| {
                 if let Err(e) = r {
-                    error!("Failed to transfer; error={}", e);
+                    match callback(e) {
+                        Ok(CondType::Stop) => {
+                            warn!("system call stop");
+                            return;
+                        }
+                        Err(e) => { error!("Failed to transfer error:{}", e); }
+                        _ => {}
+                    }
                 }
             });
 
