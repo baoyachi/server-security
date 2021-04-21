@@ -12,5 +12,5 @@ use crate::security::validate;
 
 pub async fn start(path: String) -> anyhow::Result<()> {
     let config = init_conf(path)?;
-    new_proxy(config.proxy, validate, |_|Ok(CondType::Continue)).await
+    new_proxy(config.proxy, validate, |_| Ok(CondType::Continue)).await
 }

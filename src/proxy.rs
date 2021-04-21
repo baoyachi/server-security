@@ -24,9 +24,9 @@ pub enum CondType {
 }
 
 pub async fn new_proxy<F, C>(config: SocketConfig, validate: F, callback: C) -> anyhow::Result<()>
-    where
-        F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
-        C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static
+where
+    F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
+    C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static,
 {
     let listen_addr = config.server_addr.clone();
     let to_addr = config.to_addr;
@@ -44,7 +44,9 @@ pub async fn new_proxy<F, C>(config: SocketConfig, validate: F, callback: C) -> 
                             warn!("system call stop");
                             return;
                         }
-                        Err(e) => { error!("Failed to transfer error:{}", e); }
+                        Err(e) => {
+                            error!("Failed to transfer error:{}", e);
+                        }
                         _ => {}
                     }
                 }

@@ -12,7 +12,7 @@ pub fn validate(remote_addr: &SocketAddr) -> anyhow::Result<ValidateType> {
 
     // if guard.len() > 0 {
     //     TODO change configuration
-        // return Err(anyhow::anyhow!("{} not exit error", remote_ip));
+    // return Err(anyhow::anyhow!("{} not exit error", remote_ip));
     // }
 
     if guard.get(&remote_ip).is_some() {
