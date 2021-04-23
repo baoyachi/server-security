@@ -1,1 +1,1 @@
-mod mail;
+pub mod mail;

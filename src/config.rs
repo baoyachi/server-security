@@ -2,11 +2,13 @@ use crate::proxy::SocketConfig;
 use serde::Deserialize;
 use simple_log::LogConfig;
 use std::fs;
+use crate::notify::mail::EmailServer;
 
 #[derive(Deserialize)]
 pub struct ServerConfig {
     pub proxy: SocketConfig,
     log: LogConfig,
+    pub email_server: EmailServer,
 }
 
 pub fn init_conf(path: String) -> anyhow::Result<ServerConfig> {
