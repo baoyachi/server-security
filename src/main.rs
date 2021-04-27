@@ -8,5 +8,5 @@ async fn main() {
         println!("lost config path error");
         exit(-1);
     }
-    Server::start(args[1].to_string()).await.unwrap();
+    Server::start(args[1].to_string(), 10).await.unwrap();
 }
