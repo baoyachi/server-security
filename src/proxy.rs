@@ -2,7 +2,7 @@ use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 
-use futures::FutureExt;
+use futures::{Future, FutureExt};
 use serde::Deserialize;
 use std::net::SocketAddr;
 
@@ -23,40 +23,55 @@ pub enum CondType {
     Stop,
 }
 
-pub async fn new_proxy<F, C>(config: SocketConfig, validate: F, callback: C) -> anyhow::Result<()>
-where
-    F: Fn(&SocketAddr) -> anyhow::Result<ValidateType>,
-    C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static,
-{
-    let listen_addr = config.server_addr.clone();
-    let to_addr = config.to_addr;
-    let listener = TcpListener::bind(listen_addr).await?;
+#[derive(Debug)]
+pub struct Proxy {}
 
-    while let Ok((inbound, remote_addr)) = listener.accept().await {
-        if let Err(err) = validate(&remote_addr) {
-            error!("validate error:{}", err);
-        } else {
-            debug!("remote_addr:{}", remote_addr.to_string());
-            let transfer = transfer(inbound, to_addr.clone()).map(move |r| {
-                if let Err(e) = r {
-                    match callback(e) {
-                        Ok(CondType::Stop) => {
-                            warn!("system call stop");
-                            return;
-                        }
-                        Err(e) => {
-                            error!("Failed to transfer error:{}", e);
-                        }
-                        _ => {}
-                    }
-                }
-            });
-
-            tokio::spawn(transfer);
-        }
+impl Proxy {
+    pub fn new() -> Self {
+        Proxy {}
     }
 
-    Ok(())
+    pub async fn new_proxy<F, C, R>(
+        &self,
+        config: SocketConfig,
+        validate: F,
+        callback: C,
+    ) -> anyhow::Result<()>
+    where
+        R: Future<Output = anyhow::Result<ValidateType>>,
+        F: Fn(SocketAddr) -> R,
+        C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static,
+    {
+        let listen_addr = config.server_addr.clone();
+        let to_addr = config.to_addr;
+        let listener = TcpListener::bind(listen_addr).await?;
+
+        while let Ok((inbound, remote_addr)) = listener.accept().await {
+            if let Err(err) = validate(remote_addr.clone()).await {
+                error!("validate error:{}", err);
+            } else {
+                debug!("remote_addr:{}", remote_addr.to_string());
+                let transfer = transfer(inbound, to_addr.clone()).map(move |r| {
+                    if let Err(e) = r {
+                        match callback(e) {
+                            Ok(CondType::Stop) => {
+                                warn!("system call stop");
+                                return;
+                            }
+                            Err(e) => {
+                                error!("Failed to transfer error:{}", e);
+                            }
+                            _ => {}
+                        }
+                    }
+                });
+
+                tokio::spawn(transfer);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 async fn transfer(mut inbound: TcpStream, to_addr: String) -> anyhow::Result<()> {

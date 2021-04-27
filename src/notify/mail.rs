@@ -7,15 +7,14 @@ use std::time::Duration;
 
 use lettre::{Message, SmtpTransport, Transport};
 
-
-#[derive(Deserialize,Clone)]
+#[derive(Deserialize, Clone)]
 pub struct EmailServer {
     message: EmailMessage,
     credential: Credential,
     smtp: SmtpTrans,
 }
 
-#[derive(Deserialize,Clone)]
+#[derive(Deserialize, Clone)]
 struct EmailMessage {
     from: String,
     to: String,
@@ -23,13 +22,13 @@ struct EmailMessage {
     body: String,
 }
 
-#[derive(Deserialize,Clone)]
+#[derive(Deserialize, Clone)]
 pub struct Credential {
     auth: String,
     secret: String,
 }
 
-#[derive(Deserialize,Clone)]
+#[derive(Deserialize, Clone)]
 struct SmtpTrans {
     server: String,
     port: u16,

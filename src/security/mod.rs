@@ -1,25 +1,42 @@
-use crate::proxy::ValidateType;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::RwLock;
+use crate::config::init_conf;
+use crate::proxy::{CondType, Proxy, ValidateType};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-static IP_TABLE: Lazy<RwLock<HashMap<String, ()>>> = Lazy::new(Default::default);
+pub struct Server {
+    proxy: Proxy,
+    sender: Sender<String>,
+    path: String,
+}
 
-pub fn validate(remote_addr: &SocketAddr) -> anyhow::Result<ValidateType> {
-    let remote_ip = remote_addr.ip().to_string();
-    let mut guard = IP_TABLE.write().unwrap();
-
-    // if guard.len() > 0 {
-    //     TODO change configuration
-    // return Err(anyhow::anyhow!("{} not exit error", remote_ip));
-    // }
-
-    if guard.get(&remote_ip).is_some() {
-        return Ok(ValidateType::Normal);
+impl Server {
+    pub async fn start(path: String) -> anyhow::Result<()> {
+        let (sender, rev) = channel::<String>(10);
+        let proxy = Proxy::new();
+        let server = Server {
+            proxy,
+            sender,
+            path,
+        };
+        server.start_inner(rev).await
     }
 
-    guard.insert(remote_ip, ());
-
-    Ok(ValidateType::Normal)
+    pub async fn start_inner(&self, mut rev: Receiver<String>) -> anyhow::Result<()> {
+        let config = init_conf(&self.path)?;
+        tokio::spawn(async move {
+            while let Some(i) = rev.recv().await {
+                info!("got = {:?}", i);
+            }
+        });
+        self.proxy
+            .new_proxy(
+                config.proxy,
+                |addr| async move {
+                    println!("addr:{:?}", addr);
+                    self.sender.send(addr.to_string()).await?;
+                    Ok(ValidateType::Normal)
+                },
+                |_| Ok(CondType::Continue),
+            )
+            .await
+    }
 }

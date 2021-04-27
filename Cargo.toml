@@ -24,3 +24,4 @@ toml = "0.5.8"
 lettre = { version = "0.10.0-beta.3", features = ["smtp-transport", "native-tls", "builder"] }
 #handlebars = "3.5.4"
 duration-str = "0.2"
+lru = "0.6.5"

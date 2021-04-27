@@ -1,4 +1,4 @@
-use server_security::start;
+use server_security::security::Server;
 use std::process::exit;
 
 #[tokio::main]
@@ -8,5 +8,5 @@ async fn main() {
         println!("lost config path error");
         exit(-1);
     }
-    start(args[1].to_string()).await.unwrap();
+    Server::start(args[1].to_string()).await.unwrap();
 }

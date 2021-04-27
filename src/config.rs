@@ -1,8 +1,8 @@
+use crate::notify::mail::EmailServer;
 use crate::proxy::SocketConfig;
 use serde::Deserialize;
 use simple_log::LogConfig;
 use std::fs;
-use crate::notify::mail::EmailServer;
 
 #[derive(Deserialize)]
 pub struct ServerConfig {
@@ -11,8 +11,8 @@ pub struct ServerConfig {
     pub email_server: EmailServer,
 }
 
-pub fn init_conf(path: String) -> anyhow::Result<ServerConfig> {
-    let s = fs::read_to_string(path)?;
+pub fn init_conf<S: Into<String>>(path: S) -> anyhow::Result<ServerConfig> {
+    let s = fs::read_to_string(path.into())?;
     let conf: ServerConfig = toml::from_str(&s)?;
 
     if shadow_rs::is_debug() {
