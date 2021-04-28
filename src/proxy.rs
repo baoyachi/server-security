@@ -5,6 +5,7 @@ use tokio::net::{TcpListener, TcpStream};
 use futures::{Future, FutureExt};
 use serde::Deserialize;
 use std::net::SocketAddr;
+use tokio::sync::mpsc::{channel, Sender};
 
 #[derive(Deserialize)]
 pub struct SocketConfig {
