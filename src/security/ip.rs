@@ -1,11 +1,22 @@
+use crate::proxy::CheckType;
 use chrono::{DateTime, Local, Utc};
 use lru::LruCache;
 use std::alloc::System;
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+#[derive(Debug)]
 pub struct IpServer {
     limit: usize,
     cache: LruCache<String, DateTime<Utc>>,
+}
+
+impl IpServer {
+    pub(crate) async fn check_addr(&mut self, addr: SocketAddr) -> anyhow::Result<CheckType> {
+        let ip = addr.ip().to_string();
+        &self.add_ip(ip)?;
+        Ok(CheckType::Normal)
+    }
 }
 
 impl IpServer {
@@ -24,11 +35,7 @@ impl IpServer {
         Ok(())
     }
 
-    pub fn get_ip(&mut self, ip: &String) -> anyhow::Result<&DateTime<Utc>> {
-        let datetime = self
-            .cache
-            .get(ip)
-            .ok_or_else(|| anyhow!("ip:{} not found", ip))?;
-        Ok(datetime)
+    pub fn get_ip(&mut self, ip: &String) -> Option<&DateTime<Utc>> {
+        self.cache.get(ip)
     }
 }

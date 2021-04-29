@@ -1,62 +1,44 @@
 mod ip;
 
+use async_trait::async_trait;
+
 use crate::config::init_conf;
-use crate::proxy::{CondType, Policy, Proxy, ValidateType};
+use crate::proxy::{CheckType, CondType, Policy, Proxy};
 use crate::security::ip::IpServer;
+use chrono::{DateTime, Utc};
 use std::net::SocketAddr;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 #[derive(Debug)]
-struct SecurityPolicy;
-impl Policy for SecurityPolicy {}
+struct SecurityPolicy {
+    ip_server: IpServer,
+}
+
+#[async_trait]
+impl Policy for SecurityPolicy {
+    async fn check_addr(&mut self, addr: SocketAddr) -> anyhow::Result<CheckType> {
+        self.ip_server.check_addr(addr).await
+    }
+}
 
 pub struct Server {
     proxy: Proxy<SecurityPolicy>,
-    sender: Sender<String>,
     path: String,
 }
 
 impl Server {
     pub async fn start(path: String, ip_limit: usize) -> anyhow::Result<()> {
-        let (sender, rev) = channel::<String>(10);
         let ip_server = IpServer::new(ip_limit);
-        let security_policy = SecurityPolicy {};
+        let security_policy = SecurityPolicy { ip_server };
         let proxy = Proxy::new(security_policy);
-        let mut server = Server {
-            proxy,
-            sender,
-            path,
-        };
-        server.start_inner(rev, ip_server).await
+        let mut server = Server { proxy, path };
+        server.start_inner().await
     }
 
-    pub async fn start_inner(
-        &self,
-        mut rev: Receiver<String>,
-        mut ip_server: IpServer,
-    ) -> anyhow::Result<()> {
+    pub async fn start_inner(&mut self) -> anyhow::Result<()> {
         let config = init_conf(&self.path)?;
-        tokio::spawn(async move {
-            while let Some(ip) = rev.recv().await {
-                ip_server.add_ip(ip).unwrap();
-            }
-        });
-        &self
-            .proxy
-            .new_proxy(config.proxy, Self::validate, Self::callback)
-            .await?;
+        &self.proxy.new_proxy(config.proxy, Self::callback).await?;
         Ok(())
-    }
-
-    pub async fn validate<P>(addr: SocketAddr, policy: &P) -> anyhow::Result<ValidateType>
-    where
-        P: Policy,
-    {
-        println!("addr:{:?}", addr);
-        let peer_ip = addr.ip().to_string();
-        // self.sender.send(peer_ip.clone()).await?;
-        // println!("peer_ip:{:?}",&self.ip_server.get_ip(&peer_ip));
-        Ok(ValidateType::Normal)
     }
 
     pub fn callback(err: anyhow::Error) -> anyhow::Result<CondType> {

@@ -2,6 +2,9 @@ use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 
+use async_trait::async_trait;
+
+use chrono::{Date, DateTime, Utc};
 use futures::{Future, FutureExt};
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -13,7 +16,7 @@ pub struct SocketConfig {
     pub to_addr: String,
 }
 
-pub enum ValidateType {
+pub enum CheckType {
     Normal,
     Warning,
     Forbidden,
@@ -24,7 +27,12 @@ pub enum CondType {
     Stop,
 }
 
-pub trait Policy {}
+trait AutoValue {}
+
+#[async_trait]
+pub trait Policy {
+    async fn check_addr(&mut self, addr: SocketAddr) -> anyhow::Result<CheckType>;
+}
 
 #[derive(Debug)]
 pub struct Proxy<T> {
@@ -36,16 +44,9 @@ impl<T> Proxy<T> {
         Proxy { policy }
     }
 
-    pub async fn new_proxy<'a, F, C, R>(
-        &'a self,
-        config: SocketConfig,
-        validate: F,
-        callback: C,
-    ) -> anyhow::Result<()>
+    pub async fn new_proxy<C>(&mut self, config: SocketConfig, callback: C) -> anyhow::Result<()>
     where
         T: Policy,
-        R: Future<Output = anyhow::Result<ValidateType>>,
-        F: Fn(SocketAddr, &'a T) -> R,
         C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static,
     {
         let listen_addr = config.server_addr.clone();
@@ -53,7 +54,7 @@ impl<T> Proxy<T> {
         let listener = TcpListener::bind(listen_addr).await?;
 
         while let Ok((inbound, remote_addr)) = listener.accept().await {
-            if let Err(err) = validate(remote_addr, &self.policy).await {
+            if let Err(err) = &self.policy.check_addr(remote_addr).await {
                 error!("validate error:{}", err);
             } else {
                 debug!("remote_addr:{}", remote_addr.to_string());
