@@ -24,23 +24,28 @@ pub enum CondType {
     Stop,
 }
 
-#[derive(Debug)]
-pub struct Proxy {}
+pub trait Policy {}
 
-impl Proxy {
-    pub fn new() -> Self {
-        Proxy {}
+#[derive(Debug)]
+pub struct Proxy<T> {
+    policy: T,
+}
+
+impl<T> Proxy<T> {
+    pub fn new(policy: T) -> Self {
+        Proxy { policy }
     }
 
-    pub async fn new_proxy<F, C, R>(
-        &self,
+    pub async fn new_proxy<'a, F, C, R>(
+        &'a self,
         config: SocketConfig,
         validate: F,
         callback: C,
     ) -> anyhow::Result<()>
     where
+        T: Policy,
         R: Future<Output = anyhow::Result<ValidateType>>,
-        F: Fn(SocketAddr) -> R,
+        F: Fn(SocketAddr, &'a T) -> R,
         C: Fn(anyhow::Error) -> anyhow::Result<CondType> + Sync + Send + Copy + 'static,
     {
         let listen_addr = config.server_addr.clone();
@@ -48,7 +53,7 @@ impl Proxy {
         let listener = TcpListener::bind(listen_addr).await?;
 
         while let Ok((inbound, remote_addr)) = listener.accept().await {
-            if let Err(err) = validate(remote_addr.clone()).await {
+            if let Err(err) = validate(remote_addr, &self.policy).await {
                 error!("validate error:{}", err);
             } else {
                 debug!("remote_addr:{}", remote_addr.to_string());

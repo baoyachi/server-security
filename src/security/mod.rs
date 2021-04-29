@@ -1,13 +1,17 @@
 mod ip;
 
 use crate::config::init_conf;
-use crate::proxy::{CondType, Proxy, ValidateType};
+use crate::proxy::{CondType, Policy, Proxy, ValidateType};
 use crate::security::ip::IpServer;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
+#[derive(Debug)]
+struct SecurityPolicy;
+impl Policy for SecurityPolicy {}
+
 pub struct Server {
-    proxy: Proxy,
+    proxy: Proxy<SecurityPolicy>,
     sender: Sender<String>,
     path: String,
 }
@@ -16,7 +20,8 @@ impl Server {
     pub async fn start(path: String, ip_limit: usize) -> anyhow::Result<()> {
         let (sender, rev) = channel::<String>(10);
         let ip_server = IpServer::new(ip_limit);
-        let proxy = Proxy::new();
+        let security_policy = SecurityPolicy {};
+        let proxy = Proxy::new(security_policy);
         let mut server = Server {
             proxy,
             sender,
@@ -43,7 +48,10 @@ impl Server {
         Ok(())
     }
 
-    pub async fn validate(addr: SocketAddr) -> anyhow::Result<ValidateType> {
+    pub async fn validate<P>(addr: SocketAddr, policy: &P) -> anyhow::Result<ValidateType>
+    where
+        P: Policy,
+    {
         println!("addr:{:?}", addr);
         let peer_ip = addr.ip().to_string();
         // self.sender.send(peer_ip.clone()).await?;
