@@ -447,7 +447,10 @@ version = "0.10.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897171ed0e63da84c988b157106ad8b6532d7499aeeec906ce46b05415cc79d3"
 dependencies = [
+ "async-trait",
  "base64",
+ "futures-io",
+ "futures-util",
  "hostname",
  "hyperx",
  "idna",
@@ -459,6 +462,7 @@ dependencies = [
  "r2d2",
  "rand",
  "regex",
+ "tokio",
  "uuid",
 ]
 

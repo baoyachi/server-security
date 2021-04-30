@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use duration_str::deserialize_duration;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
@@ -5,6 +6,7 @@ use lettre::transport::smtp::{SMTP_PORT, SUBMISSION_PORT};
 use serde::Deserialize;
 use std::time::Duration;
 
+use crate::security::ip::{Notify, NotifyMsg};
 use lettre::{Message, SmtpTransport, Transport};
 
 #[derive(Deserialize, Clone)]
@@ -18,8 +20,6 @@ pub struct EmailServer {
 struct EmailMessage {
     from: String,
     to: String,
-    subject: String,
-    body: String,
 }
 
 #[derive(Deserialize, Clone)]
@@ -36,14 +36,21 @@ struct SmtpTrans {
     timeout: Duration,
 }
 
+#[async_trait]
+impl Notify for EmailServer {
+    async fn notify(&self, msg: NotifyMsg) -> anyhow::Result<()> {
+        self.send(msg)
+    }
+}
+
 impl EmailServer {
-    fn send(&self) -> anyhow::Result<()> {
+    fn send(&self, msg: NotifyMsg) -> anyhow::Result<()> {
         let message = &self.message;
         let email = Message::builder()
             .from(message.from.parse()?)
             .to(message.to.parse()?)
-            .subject(&message.subject)
-            .body(String::from(&message.body))?;
+            .subject(&msg.subject)
+            .body(String::from(&msg.body))?;
 
         let creds = Credentials::new(
             self.credential.auth.to_string(),

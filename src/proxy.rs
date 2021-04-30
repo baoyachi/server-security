@@ -18,8 +18,7 @@ pub struct SocketConfig {
 
 pub enum CheckType {
     Normal,
-    Warning,
-    Forbidden,
+    Stop,
 }
 
 pub enum CondType {
@@ -31,7 +30,7 @@ trait AutoValue {}
 
 #[async_trait]
 pub trait Policy {
-    async fn check_addr(&mut self, addr: SocketAddr) -> anyhow::Result<CheckType>;
+    async fn check_addr(&mut self, addr: &SocketAddr) -> anyhow::Result<CheckType>;
 }
 
 #[derive(Debug)]
@@ -54,7 +53,7 @@ impl<T> Proxy<T> {
         let listener = TcpListener::bind(listen_addr).await?;
 
         while let Ok((inbound, remote_addr)) = listener.accept().await {
-            if let Err(err) = &self.policy.check_addr(remote_addr).await {
+            if let Err(err) = &self.policy.check_addr(&remote_addr).await {
                 error!("validate error:{}", err);
             } else {
                 debug!("remote_addr:{}", remote_addr.to_string());
@@ -76,7 +75,6 @@ impl<T> Proxy<T> {
                 tokio::spawn(transfer);
             }
         }
-
         Ok(())
     }
 }
