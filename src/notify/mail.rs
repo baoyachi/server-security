@@ -1,13 +1,15 @@
 use async_trait::async_trait;
 use duration_str::deserialize_duration;
-use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::{SMTP_PORT, SUBMISSION_PORT};
 use serde::Deserialize;
 use std::time::Duration;
 
 use crate::security::ip::{Notify, NotifyMsg};
-use lettre::{Message, SmtpTransport, Transport};
+use lettre::{
+    transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
+    Tokio1Executor,
+};
 
 #[derive(Deserialize, Clone)]
 pub struct EmailServer {
@@ -39,12 +41,12 @@ struct SmtpTrans {
 #[async_trait]
 impl Notify for EmailServer {
     async fn notify(&self, msg: NotifyMsg) -> anyhow::Result<()> {
-        self.send(msg)
+        self.send(msg).await
     }
 }
 
 impl EmailServer {
-    fn send(&self, msg: NotifyMsg) -> anyhow::Result<()> {
+    async fn send(&self, msg: NotifyMsg) -> anyhow::Result<()> {
         let message = &self.message;
         let email = Message::builder()
             .from(message.from.parse()?)
@@ -61,16 +63,17 @@ impl EmailServer {
             .dangerous_accept_invalid_certs(true)
             .build()?;
 
-        // Open a remote connection to gmail
-        let mailer = SmtpTransport::relay(&self.smtp.server)?
-            .credentials(creds)
-            .tls(Tls::Required(tls))
-            .port(self.smtp.port)
-            .timeout(Some(Duration::from_secs(5)))
-            .build();
+        // Open a remote connection to gmail using STARTTLS
+        let mailer: AsyncSmtpTransport<Tokio1Executor> =
+            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.smtp.server)?
+                .credentials(creds)
+                .tls(Tls::Required(tls))
+                .port(self.smtp.port)
+                // .timeout(Some(Duration::from_secs(5)))
+                .build();
 
         // Send the email
-        mailer.send(&email)?;
+        mailer.send(email).await?;
         Ok(())
     }
 }
