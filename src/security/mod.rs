@@ -1,25 +1,50 @@
-use crate::proxy::ValidateType;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
+pub mod ip;
+
+use async_trait::async_trait;
+
+use crate::config::{init_conf, ServerConfig};
+use crate::notify::mail::EmailServer;
+use crate::proxy::{CheckType, CondType, Policy, Proxy};
+use crate::security::ip::{IpServer, Notify};
+use chrono::{DateTime, Utc};
 use std::net::SocketAddr;
-use std::sync::RwLock;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-static IP_TABLE: Lazy<RwLock<HashMap<String, ()>>> = Lazy::new(Default::default);
+#[derive(Debug)]
+struct SecurityPolicy<T> {
+    ip_server: IpServer<T>,
+}
 
-pub fn validate(remote_addr: &SocketAddr) -> anyhow::Result<ValidateType> {
-    let remote_ip = remote_addr.ip().to_string();
-    let mut guard = IP_TABLE.write().unwrap();
+#[async_trait]
+impl<T> Policy for SecurityPolicy<T>
+where
+    T: Notify,
+{
+    async fn check_addr(&mut self, addr: &SocketAddr) -> anyhow::Result<CheckType> {
+        self.ip_server.check_addr(addr).await
+    }
+}
 
-    // if guard.len() > 0 {
-    //     TODO change configuration
-    // return Err(anyhow::anyhow!("{} not exit error", remote_ip));
-    // }
+pub struct Server {
+    proxy: Proxy<SecurityPolicy<EmailServer>>,
+}
 
-    if guard.get(&remote_ip).is_some() {
-        return Ok(ValidateType::Normal);
+impl Server {
+    pub async fn start(path: String, ip_limit: usize) -> anyhow::Result<()> {
+        let config = init_conf(path)?;
+        let ip_server = IpServer::new(ip_limit, config.email_server.clone());
+        let security_policy = SecurityPolicy { ip_server };
+        let proxy = Proxy::new(security_policy);
+        let mut server = Server { proxy };
+        server.start_inner(config).await
     }
 
-    guard.insert(remote_ip, ());
+    pub async fn start_inner(&mut self, config: ServerConfig) -> anyhow::Result<()> {
+        &self.proxy.new_proxy(config.proxy, Self::callback).await?;
+        Ok(())
+    }
 
-    Ok(ValidateType::Normal)
+    pub fn callback(err: anyhow::Error) -> anyhow::Result<CondType> {
+        Ok(CondType::Continue)
+    }
 }
