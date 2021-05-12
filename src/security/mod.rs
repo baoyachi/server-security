@@ -32,9 +32,15 @@ pub struct Server {
 impl Server {
     pub async fn start(path: String, ip_limit: usize) -> anyhow::Result<()> {
         let config = init_conf(path)?;
-        let ip_server = IpServer::new(ip_limit, config.email_server.clone());
-        let security_policy = SecurityPolicy { ip_server };
-        let proxy = Proxy::new(security_policy);
+
+        let policy = config
+            .email_server
+            .clone()
+            .map(|s| IpServer::new(ip_limit, s))
+            .map(|ip_server| Some(SecurityPolicy { ip_server }))
+            .unwrap_or_default();
+
+        let proxy = Proxy::new(policy);
         let mut server = Server { proxy };
         server.start_inner(config).await
     }

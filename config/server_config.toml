@@ -1,11 +1,3 @@
 [proxy]
 server_addr = "0.0.0.0:8081"
 to_addr = "127.0.0.1:8080"
-
-[log]
-# see how to configrution simple-log:https://github.com/baoyachi/simple-log
-path = "./var/log/server_security/server_security.log"
-level = "INFO"
-size = 200
-out_kind = ["file"]
-roll_count = 300

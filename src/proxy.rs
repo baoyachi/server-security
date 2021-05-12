@@ -35,11 +35,11 @@ pub trait Policy {
 
 #[derive(Debug)]
 pub struct Proxy<T> {
-    policy: T,
+    policy: Option<T>,
 }
 
 impl<T> Proxy<T> {
-    pub fn new(policy: T) -> Self {
+    pub fn new(policy: Option<T>) -> Self {
         Proxy { policy }
     }
 
@@ -53,8 +53,10 @@ impl<T> Proxy<T> {
         let listener = TcpListener::bind(listen_addr).await?;
 
         while let Ok((inbound, remote_addr)) = listener.accept().await {
-            if let Err(err) = &self.policy.check_addr(&remote_addr).await {
-                error!("validate error:{}", err);
+            if let Some(policy) = self.policy.as_mut() {
+                if let Err(err) = policy.check_addr(&remote_addr).await {
+                    error!("validate error:{}", err);
+                }
             } else {
                 debug!("remote_addr:{}", remote_addr.to_string());
                 let transfer = transfer(inbound, to_addr.clone()).map(move |r| {
